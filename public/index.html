@@ -1946,22 +1946,23 @@ window.addEventListener('error', function(e){
             <div class="admin-section-head">
               <div>
                 <h3>Copias de seguridad</h3>
-                <p>Descarga una copia completa de la agenda y comprueba copias anteriores sin modificar los datos.</p>
+                <p>Descarga una copia completa de la agenda o recupera reservas eliminadas desde una copia anterior.</p>
               </div>
               <button class="btn" onclick="setAdminTab('users')"><i class="ti ti-arrow-left"></i> Volver a usuarios</button>
             </div>
             <div class="backup-grid">
               <div class="backup-card"><i class="ti ti-file-type-json"></i><b>Copia completa JSON</b><p>Incluye reservas, usuarios internos, departamentos, recursos y auditoría.</p></div>
               <div class="backup-card"><i class="ti ti-file-type-csv"></i><b>Reservas en CSV</b><p>Formato legible para Excel, con todas las reservas y sus responsables.</p></div>
-              <div class="backup-card"><i class="ti ti-shield-check"></i><b>Validar una copia</b><p>Comprueba formato y huella SHA-256 localmente. El archivo no se sube.</p></div>
+              <div class="backup-card"><i class="ti ti-restore"></i><b>Validar y restaurar</b><p>Comprueba la huella del archivo y permite recuperar solo las reservas que ya no existen.</p></div>
             </div>
             <div class="backup-actions">
               <button class="btn btn-primary" id="btn-backup-json" onclick="createAgendaBackup()"><i class="ti ti-download"></i> Crear copia completa</button>
               <button class="btn" id="btn-backup-csv" onclick="exportReservasCsv()"><i class="ti ti-file-spreadsheet"></i> Exportar reservas CSV</button>
+              <button class="btn" id="btn-restore-backup" onclick="restoreAgendaBackup()" disabled><i class="ti ti-restore"></i> Restaurar reservas</button>
             </div>
-            <input class="backup-file" id="backup-file" type="file" accept="application/json,.json" onchange="validateAgendaBackup(this)" aria-label="Seleccionar copia JSON para validar">
+            <input class="backup-file" id="backup-file" type="file" accept="application/json,.json" onchange="validateAgendaBackup(this)" aria-label="Seleccionar copia JSON para validar y restaurar">
             <div class="backup-status" id="backup-status">Aún no se ha creado ninguna copia desde este navegador.</div>
-            <div class="admin-warning-clean" style="margin:0 16px 16px">Las copias contienen datos personales y deben guardarse en una ubicación corporativa protegida. Este apartado no borra ni restaura información automáticamente.</div>
+            <div class="admin-warning-clean" style="margin:0 16px 16px">Las copias contienen datos personales y deben guardarse en una ubicación corporativa protegida. La restauración no borra ni sobrescribe reservas existentes: solo recupera las que falten.</div>
           </div>
         </div>
       </section>
@@ -5187,6 +5188,12 @@ const BACKUP_ORDER_COLUMNS={
   recursos:'id',
   audit_log:'created_at'
 };
+const RESTORABLE_RESERVA_COLUMNS=[
+  'id','titulo','starts_at','ends_at','responsable_id','area','ubicacion','descripcion',
+  'tipo_evento','estado','creado_por','created_at','updated_at','created_by','cancelada_por',
+  'cancelada_at','motivo_cancelacion','responsable_2_id'
+];
+let pendingBackupRestore=null;
 
 async function fetchAllBackupRows(table){
   const rows=[];
@@ -5230,7 +5237,43 @@ function setBackupStatus(message,type=''){
   el.textContent=message;
 }
 
+function setBackupRestoreButton(count=0,busy=false){
+  const btn=document.getElementById('btn-restore-backup');
+  if(!btn) return;
+  btn.disabled=busy || count<1;
+  btn.innerHTML=busy
+    ? '<i class="ti ti-loader-2"></i> Restaurando...'
+    : `<i class="ti ti-restore"></i> ${count>0?`Restaurar ${count} reserva${count===1?'':'s'}`:'Restaurar reservas'}`;
+}
+
+function clearPendingBackupRestore(){
+  pendingBackupRestore=null;
+  setBackupRestoreButton(0);
+}
+
+function cleanBackupReserva(row){
+  const clean={};
+  RESTORABLE_RESERVA_COLUMNS.forEach(column=>{
+    if(Object.prototype.hasOwnProperty.call(row,column)) clean[column]=row[column];
+  });
+  return clean;
+}
+
+async function prepareBackupRestore(backup,fileName){
+  const rows=backup.data.reservas;
+  if(rows.some(row=>!row || typeof row!=='object' || !row.id)) throw new Error('Hay reservas sin identificador y no se pueden restaurar con seguridad.');
+  const ids=rows.map(row=>String(row.id));
+  if(new Set(ids).size!==ids.length) throw new Error('La copia contiene identificadores de reserva duplicados.');
+  const currentRows=await fetchAllBackupRows('reservas');
+  const currentIds=new Set(currentRows.map(row=>String(row.id)));
+  const missing=rows.filter(row=>!currentIds.has(String(row.id))).map(cleanBackupReserva);
+  pendingBackupRestore={backup,fileName,missing};
+  setBackupRestoreButton(missing.length);
+  return {missing:missing.length,existing:rows.length-missing.length};
+}
+
 function renderBackupPanel(){
+  if(pendingBackupRestore) return;
   let last='';
   try{ last=localStorage.getItem('agenda_last_backup_at')||''; }catch(_){}
   if(last){
@@ -5331,6 +5374,7 @@ async function validateAgendaBackup(input){
   if(!isAdmin()){ input.value=''; return; }
   const file=input.files?.[0];
   if(!file) return;
+  clearPendingBackupRestore();
   if(file.size>50*1024*1024){ setBackupStatus('El archivo supera el límite de validación de 50 MB.','error'); input.value=''; return; }
   setBackupStatus('Validando estructura e integridad de la copia...');
   try{
@@ -5344,11 +5388,71 @@ async function validateAgendaBackup(input){
     if(actual.toLowerCase()!==integrity.hash.toLowerCase()) throw new Error('La huella no coincide: el archivo está dañado o fue modificado.');
     const created=new Date(backup.created_at);
     if(Number.isNaN(created.getTime())) throw new Error('La fecha de creación no es válida.');
-    setBackupStatus(`Copia válida (${file.name}). Creada el ${created.toLocaleString('es-ES')}: ${backup.data.reservas.length} reservas, ${backup.data.profiles.length} usuarios y ${backup.data.audit_log.length} registros de auditoría.`,'ok');
+    setBackupStatus('Copia válida. Comparando sus reservas con la agenda actual...');
+    const preview=await prepareBackupRestore(backup,file.name);
+    const restoreText=preview.missing
+      ? `${preview.missing} reserva${preview.missing===1?' eliminada puede':'s eliminadas pueden'} restaurarse con el botón.`
+      : 'Todas sus reservas ya existen; no hay nada que restaurar.';
+    setBackupStatus(`Copia válida (${file.name}), creada el ${created.toLocaleString('es-ES')}. ${restoreText} ${preview.existing} ya existe${preview.existing===1?'':'n'} y no se sobrescribirá${preview.existing===1?'':'n'}.`,'ok');
   }catch(e){
+    clearPendingBackupRestore();
     setBackupStatus('Copia no válida: '+String(e.message||e),'error');
   }finally{
     input.value='';
+  }
+}
+
+async function restoreAgendaBackup(){
+  if(!isAdmin()){ toast('Solo un administrador puede restaurar reservas.','error'); return; }
+  if(!pendingBackupRestore?.missing?.length){
+    toast('Selecciona primero una copia que contenga reservas eliminadas.','error');
+    return;
+  }
+  const accepted=confirm(`Se recuperarán ${pendingBackupRestore.missing.length} reserva${pendingBackupRestore.missing.length===1?'':'s'} que ya no existen. No se sobrescribirá ni borrará ninguna reserva actual. ¿Continuar?`);
+  if(!accepted) return;
+
+  let restored=0;
+  setBackupRestoreButton(pendingBackupRestore.missing.length,true);
+  setBackupStatus('Comprobando de nuevo la agenda y restaurando las reservas ausentes...');
+  try{
+    const currentRows=await fetchAllBackupRows('reservas');
+    const currentIds=new Set(currentRows.map(row=>String(row.id)));
+    const rows=pendingBackupRestore.backup.data.reservas
+      .filter(row=>!currentIds.has(String(row.id)))
+      .map(cleanBackupReserva);
+    if(!rows.length){
+      clearPendingBackupRestore();
+      setBackupStatus('No se restauró nada: todas las reservas de la copia ya existen en la agenda.','ok');
+      return;
+    }
+    for(let start=0;start<rows.length;start+=100){
+      const batch=rows.slice(start,start+100);
+      const res=await sb.from('reservas').insert(batch).select('id');
+      if(res.error) throw new Error(res.error.message);
+      restored+=batch.length;
+    }
+    await addAudit('Restauración de copia','backup',null,`${restored} reservas recuperadas desde ${pendingBackupRestore.fileName}`);
+    await reloadData();
+    renderAll();
+    await broadcastAgendaChange('restored',null);
+    clearPendingBackupRestore();
+    setBackupStatus(`Restauración terminada correctamente: ${restored} reserva${restored===1?' recuperada':'s recuperadas'}. Las reservas existentes no se modificaron.`,'ok');
+    toast(`${restored} reserva${restored===1?' restaurada':'s restauradas'}.`);
+  }catch(e){
+    console.error('[Agenda] Error restaurando copia',e);
+    if(restored){
+      try{ await reloadData(); renderAll(); }catch(_){}
+    }
+    try{
+      const preview=await prepareBackupRestore(pendingBackupRestore.backup,pendingBackupRestore.fileName);
+      setBackupStatus(`La restauración se detuvo tras recuperar ${restored} reserva${restored===1?'':'s'}: ${String(e.message||e)}. Quedan ${preview.missing} pendientes.`,'error');
+    }catch(_){
+      clearPendingBackupRestore();
+      setBackupStatus('No se pudo restaurar la copia: '+String(e.message||e),'error');
+    }
+    toast('No se pudo completar la restauración.','error');
+  }finally{
+    if(pendingBackupRestore) setBackupRestoreButton(pendingBackupRestore.missing.length);
   }
 }
 

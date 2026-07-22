@@ -49,7 +49,8 @@ Los administradores disponen de la pestaña **Administración → Copias**:
 
 - **Crear copia completa** descarga un JSON con todas las reservas, perfiles internos, departamentos, recursos y registros de auditoría accesibles mediante las políticas RLS.
 - **Exportar reservas CSV** genera un archivo compatible con Excel para consulta manual.
-- **Validar una copia** comprueba localmente el formato y la huella SHA-256 del JSON. El archivo no se envía al servidor ni modifica Supabase.
+- **Validar una copia** comprueba localmente el formato y la huella SHA-256 del JSON y compara sus reservas con la agenda actual.
+- **Restaurar reservas** recupera únicamente las reservas de la copia que ya no existen. Requiere confirmación expresa y nunca sobrescribe ni elimina reservas actuales.
 
 Las copias contienen datos personales. Deben almacenarse en una ubicación corporativa protegida y verificarse periódicamente con el validador incluido.
 
