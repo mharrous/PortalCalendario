@@ -2543,6 +2543,13 @@ async function boot(){
     return;
   }
 
+  if(params.get('error')){
+    showLogin();
+    const detail=params.get('error_description');
+    showAuthError('No se pudo completar el acceso con Microsoft.'+(detail?'\n'+detail:''));
+    return;
+  }
+
   try{
     portalUser=await loadPortalSession();
   }catch(e){
