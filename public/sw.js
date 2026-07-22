@@ -1,4 +1,4 @@
-const CACHE_NAME = 'agenda-camara-2-9-0-backups';
+const CACHE_NAME = 'agenda-camara-2-9-1-backups-hotfix';
 const ASSETS = [
   './',
   './index.html',
