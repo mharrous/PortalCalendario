@@ -43,6 +43,16 @@ El Worker configurado en `wrangler.jsonc` se llama `calendario`. Si el proyecto 
 
 La autorización general procede del portal. Supabase sigue proporcionando la sesión necesaria para consultar y modificar los datos de la agenda. Azure debe continuar habilitado en Supabase y las cuentas autorizadas deben conservar un perfil activo en `public.profiles`.
 
+## Copias de seguridad
+
+Los administradores disponen de la pestaña **Administración → Copias**:
+
+- **Crear copia completa** descarga un JSON con todas las reservas, perfiles internos, departamentos, recursos y registros de auditoría accesibles mediante las políticas RLS.
+- **Exportar reservas CSV** genera un archivo compatible con Excel para consulta manual.
+- **Validar una copia** comprueba localmente el formato y la huella SHA-256 del JSON. El archivo no se envía al servidor ni modifica Supabase.
+
+Las copias contienen datos personales. Deben almacenarse en una ubicación corporativa protegida y verificarse periódicamente con el validador incluido.
+
 ## Seguridad
 
 - No se confía en parámetros con correos, `Referer` ni `localStorage`.

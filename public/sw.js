@@ -1,4 +1,4 @@
-const CACHE_NAME = 'agenda-camara-2-8-0-portal-sso';
+const CACHE_NAME = 'agenda-camara-2-9-0-backups';
 const ASSETS = [
   './',
   './index.html',
