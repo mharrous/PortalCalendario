@@ -3809,10 +3809,34 @@ function showFormError(msg, ids=[]){
   ids.forEach(id=>document.getElementById(id)?.classList.add('input-error'));
 }
 
+function reservationParticipantIds(reserva){
+  return [reserva?.responsable_id, secondaryResponsableId(reserva)].filter(Boolean).map(String);
+}
+
+function reservationConflictReason(payload, existing){
+  const payloadArea=String(payload?.area||'').trim();
+  const existingArea=String(existing?.area||'').trim();
+  if(!payloadArea || !existingArea) return 'Alguna reserva no tiene departamento asignado';
+  if(sameDepartment(payloadArea,existingArea)) return 'Mismo departamento';
+
+  const payloadParticipants=new Set(reservationParticipantIds(payload));
+  if(reservationParticipantIds(existing).some(id=>payloadParticipants.has(id))) return 'Coordinador compartido';
+
+  const payloadLocation=normalizeTextKey(payload?.ubicacion||'');
+  const existingLocation=normalizeTextKey(existing?.ubicacion||'');
+  if(payloadLocation && existingLocation && payloadLocation===existingLocation) return 'Misma ubicación';
+  return '';
+}
+
 function localConflict(payload){
   if(!isOpenEstado(payload.estado)) return null;
   const s=new Date(payload.starts_at), e=new Date(payload.ends_at);
-  return reservas.find(r=>isOpenReserva(r) && r.id!==payload.id && s < new Date(r.ends_at) && e > new Date(r.starts_at));
+  const existing=reservas.find(r=>{
+    if(!isOpenReserva(r) || r.id===payload.id) return false;
+    if(!(s < new Date(r.ends_at) && e > new Date(r.starts_at))) return false;
+    return Boolean(reservationConflictReason(payload,r));
+  });
+  return existing ? {...existing,conflict_reason:reservationConflictReason(payload,existing)} : null;
 }
 
 function showConflictError(cf){
@@ -3823,8 +3847,9 @@ function showConflictError(cf){
       <div class="conflict-icon"><i class="ti ti-alert-triangle"></i></div>
       <div class="conflict-content">
         <b>Conflicto de horario detectado</b>
-        <p>No se puede guardar esta reserva porque se solapa con otra reserva activa. Revisa la franja horaria o modifica la reserva existente.</p>
+        <p>No se puede guardar porque ambas reservas comparten un recurso. Los departamentos distintos sí pueden reservar en paralelo cuando no comparten coordinadores ni ubicación.</p>
         <div class="conflict-data">
+          <span>Motivo</span><span>${esc(cf.conflict_reason||'Recurso compartido')}</span>
           <span>Reserva existente</span><span>${esc(cf.titulo)}</span>
           <span>Fecha</span><span>${dateRangeLabel(cf)}</span>
           <span>Horario</span><span>${timeOf(cf.starts_at)} - ${timeOf(cf.ends_at)}</span>
@@ -3899,7 +3924,7 @@ async function saveReserva(){
   if(res.error){
     const msg=res.error.message||JSON.stringify(res.error);
     if(String(msg).includes('CONFLICTO_RESERVA')){
-      showFormError('Conflicto de horario: ya existe una reserva activa en esa franja.');
+      showFormError('Conflicto de horario: la reserva coincide con otra del mismo departamento, coordinador o ubicación.');
     }else{
       if(String(msg).toLowerCase().includes('responsable_2_id') || String(msg).toLowerCase().includes('schema cache')){
         responsable2ColumnReady=false;

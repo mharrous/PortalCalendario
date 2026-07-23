@@ -43,6 +43,10 @@ El Worker configurado en `wrangler.jsonc` se llama `calendario`. Si el proyecto 
 
 La autorización general procede del portal. Supabase sigue proporcionando la sesión necesaria para consultar y modificar los datos de la agenda. Azure debe continuar habilitado en Supabase y las cuentas autorizadas deben conservar un perfil activo en `public.profiles`.
 
+### Reservas paralelas por departamento
+
+Ejecuta `database_update_parallel_reservations.sql` una vez en el editor SQL de Supabase. La regla permite solapes entre departamentos distintos cuando no comparten coordinador ni ubicación. Se mantienen bloqueados los solapes del mismo departamento, con responsables compartidos, en la misma ubicación o sin departamento asignado.
+
 ## Copias de seguridad
 
 Los administradores disponen de la pestaña **Administración → Copias**:
