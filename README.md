@@ -10,6 +10,8 @@ Agenda corporativa protegida por el inicio de sesión Microsoft y los permisos d
 4. El calendario crea una cookie segura y mantiene Supabase Auth para acceder a sus datos.
 5. Cada minuto se vuelve a comprobar el permiso. Una revocación cierra la aplicación.
 
+Cuando el calendario está incrustado en Portal Jornadas, Jornadas genera un código central de un solo uso para el usuario ya autenticado. El calendario guarda su sesión Worker en una cookie particionada y, si Supabase todavía no tiene sesión en ese contexto, completa Microsoft en una ventana emergente segura en lugar de intentar cargarlo dentro del `iframe`.
+
 ## Configuración obligatoria
 
 Los dos Workers deben tener el mismo secreto, configurado de forma interactiva y nunca guardado en GitHub.
@@ -63,5 +65,6 @@ Las copias contienen datos personales. Deben almacenarse en una ubicación corpo
 - No se confía en parámetros con correos, `Referer` ni `localStorage`.
 - Los códigos de entrada duran 45 segundos y solo se pueden utilizar una vez.
 - La cookie es `HttpOnly`, `Secure` y `SameSite=Lax`.
+- La sesión incrustada utiliza además `SameSite=None; Partitioned` para funcionar dentro de `portal-jornadas.pages.dev`.
 - La sesión puede durar hasta 180 días, pero el permiso central se vuelve a comprobar continuamente.
 - El acceso local por correo y contraseña no se muestra en la interfaz.

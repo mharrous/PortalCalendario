@@ -1675,8 +1675,8 @@ window.addEventListener('error', function(e){
     <div id="login-error" class="error-box"></div>
     <div id="access-denied" class="access-denied-box"></div>
     <div class="sso-box">
-      <button class="btn btn-microsoft" onclick="startPortalLogin()"><i class="ti ti-brand-windows"></i> Entrar desde el portal corporativo</button>
-      <div class="login-help">El portal comprobará tu cuenta Microsoft y que tengas permiso para utilizar el calendario.</div>
+      <button class="btn btn-microsoft" onclick="doMicrosoftLogin()"><i class="ti ti-brand-windows"></i> Completar acceso Microsoft</button>
+      <div class="login-help">Si estás dentro de Jornadas, Microsoft se abrirá en una ventana segura y el calendario se activará aquí automáticamente.</div>
     </div>
   </div>
 </div>
@@ -2210,7 +2210,7 @@ window.addEventListener('error', function(e){
 <div class="toast-wrap" id="toast-wrap"></div>
 
 <script>
-const APP_VERSION = "2.8.0-portal-sso";
+const APP_VERSION = "2.9.0-embedded-sso";
 const SUPABASE_URL = "https://oqeyynrgustgotpcoewh.supabase.co";
 const SUPABASE_KEY = "sb_publishable_IySdHXVzAN-mVIjksuJsyg_NSnXCQEw";
 
@@ -2220,6 +2220,9 @@ const MICROSOFT_PROVIDER = "azure";
 const MICROSOFT_SCOPES = "openid email profile";
 const PORTAL_URL = "https://portal.camaraceuta.workers.dev";
 const PORTAL_LAUNCH_URL = PORTAL_URL + "/api/apps/calendario-eventos/launch";
+const EMBED_LAUNCH_URL = "https://portal-jornadas.pages.dev/api/calendar/launch";
+const EMBEDDED_MODE = window.self !== window.top || new URLSearchParams(window.location.search).get('embed') === '1';
+const EMBED_AUTH_MESSAGE = 'calendar-supabase-session';
 let sb = null;
 let portalUser = null;
 let portalAccessTimer = null;
@@ -2578,6 +2581,10 @@ function toast(msg,type='ok'){const t=document.createElement('div');t.className=
 async function boot(){
   clearAuthError();
   const params=new URLSearchParams(window.location.search);
+  if(params.get('auth_popup')==='1' && window.opener){
+    await completeEmbedAuthPopup();
+    return;
+  }
   if(params.get('auth_error')){
     showLogin();
     showPortalAccessDenied();
@@ -2611,7 +2618,33 @@ async function boot(){
     return;
   }
 
+  if(EMBEDDED_MODE){
+    showLogin();
+    showAuthError('Pulsa “Completar acceso Microsoft”. Se abrirá una ventana segura y volverás automáticamente al calendario.');
+    return;
+  }
+
   await doMicrosoftLogin(true);
+}
+
+async function completeEmbedAuthPopup(){
+  showLogin();
+  showAuthError('Completando el acceso Microsoft…');
+  for(let attempt=0;attempt<40;attempt+=1){
+    const {data:{session}}=await sb.auth.getSession();
+    if(session?.access_token && session?.refresh_token){
+      window.opener.postMessage({
+        type:EMBED_AUTH_MESSAGE,
+        accessToken:session.access_token,
+        refreshToken:session.refresh_token
+      },window.location.origin);
+      showAuthError('Acceso completado. Esta ventana se cerrará automáticamente.');
+      window.setTimeout(()=>window.close(),350);
+      return;
+    }
+    await new Promise(resolve=>window.setTimeout(resolve,250));
+  }
+  showAuthError('Microsoft no devolvió una sesión válida. Cierra esta ventana y vuelve a intentarlo.');
 }
 
 async function loadPortalSession(){
@@ -2623,7 +2656,7 @@ async function loadPortalSession(){
 }
 
 function startPortalLogin(){
-  window.location.assign(PORTAL_LAUNCH_URL);
+  window.location.assign(EMBEDDED_MODE ? EMBED_LAUNCH_URL : PORTAL_LAUNCH_URL);
 }
 
 function showLogin(){
@@ -2696,18 +2729,44 @@ async function doMicrosoftLogin(auto=false){
     showAuthError('El cliente Supabase no se inicializó. Recarga la página (Ctrl/Cmd + R).');
     return;
   }
-  const {error}=await sb.auth.signInWithOAuth({
+  const redirectTo=EMBEDDED_MODE
+    ? window.location.origin+window.location.pathname+'?auth_popup=1'
+    : ssoRedirectUrl();
+  const {data,error}=await sb.auth.signInWithOAuth({
     provider: MICROSOFT_PROVIDER,
     options:{
       scopes: MICROSOFT_SCOPES,
-      redirectTo: ssoRedirectUrl()
+      redirectTo,
+      skipBrowserRedirect: EMBEDDED_MODE
     }
   });
   if(error){
     console.error(error);
     showAuthError('No se pudo iniciar sesión con Microsoft. Revisa que Azure esté configurado en Supabase Auth y que esta URL esté permitida como Redirect URL.');
+    return;
+  }
+  if(EMBEDDED_MODE){
+    const popup=window.open(data?.url||'', 'calendarMicrosoftAccess', 'popup=yes,width=560,height=720');
+    if(!popup){
+      showAuthError('El navegador ha bloqueado la ventana de acceso. Permite las ventanas emergentes para este sitio y vuelve a pulsar el botón.');
+    }else{
+      showAuthError('Completa el acceso en la ventana de Microsoft. El calendario continuará automáticamente.');
+    }
   }
 }
+
+window.addEventListener('message',async event=>{
+  if(event.origin!==window.location.origin || event.data?.type!==EMBED_AUTH_MESSAGE) return;
+  const accessToken=String(event.data.accessToken||'');
+  const refreshToken=String(event.data.refreshToken||'');
+  if(!accessToken || !refreshToken) return;
+  const {error}=await sb.auth.setSession({access_token:accessToken,refresh_token:refreshToken});
+  if(error){
+    showAuthError('No se pudo activar la sesión del calendario: '+error.message);
+    return;
+  }
+  await boot();
+});
 
 async function ensureProfile(authUser){
   const email=String(authUser.email||authUser.user_metadata?.email||'').trim().toLowerCase();

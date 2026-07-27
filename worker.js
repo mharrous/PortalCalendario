@@ -2,6 +2,7 @@ const APP_CODE = "calendario-eventos";
 const SESSION_COOKIE = "portal_calendario_session";
 const SESSION_SECONDS = 180 * 24 * 60 * 60;
 const DEFAULT_PORTAL_ORIGIN = "https://portal.camaraceuta.workers.dev";
+const DEFAULT_EMBED_PARENT_ORIGIN = "https://portal-jornadas.pages.dev";
 
 export default {
   async fetch(request, env) {
@@ -13,9 +14,14 @@ export default {
       if (url.pathname.startsWith("/api/")) return json({ error: "Ruta no encontrada" }, 404);
 
       if (request.method === "GET" && acceptsHtml(request)) {
-        if (url.searchParams.get("auth_error")) return assetResponse(request, env);
+        if (url.searchParams.get("auth_error") || url.searchParams.get("auth_popup") === "1") return assetResponse(request, env);
         const session = await authorizedSession(request, env);
-        if (!session) return redirect(`${portalOrigin(env)}/api/apps/${APP_CODE}/launch`);
+        if (!session) {
+          const loginUrl = url.searchParams.get("embed") === "1"
+            ? `${embedParentOrigin(env)}/api/calendar/launch`
+            : `${portalOrigin(env)}/api/apps/${APP_CODE}/launch`;
+          return redirect(loginUrl);
+        }
       }
       return assetResponse(request, env);
     } catch (error) {
@@ -26,27 +32,34 @@ export default {
 };
 
 async function portalCallback(request, env) {
-  const code = String(new URL(request.url).searchParams.get("code") || "");
-  if (!code) return redirect("/?auth_error=access_denied");
+  const url = new URL(request.url);
+  const code = String(url.searchParams.get("code") || "");
+  const embedded = url.searchParams.get("embed") === "1";
+  if (!code) return redirect(embedded ? "/?auth_error=access_denied&embed=1" : "/?auth_error=access_denied");
   const response = await portalRequest(env, "/api/sso/calendario/exchange", { code });
-  if (!response.ok) return redirect("/?auth_error=access_denied");
+  if (!response.ok) return redirect(embedded ? "/?auth_error=access_denied&embed=1" : "/?auth_error=access_denied");
   const result = await response.json();
-  const token = await createSessionToken(result.user, env);
-  return redirect("/", { "set-cookie": sessionCookie(token, SESSION_SECONDS), "referrer-policy": "no-referrer" });
+  const token = await createSessionToken(result.user, env, embedded);
+  return redirect(embedded ? "/?embed=1" : "/", {
+    "set-cookie": sessionCookie(token, SESSION_SECONDS, embedded),
+    "referrer-policy": "no-referrer",
+  });
 }
 
 async function sessionStatus(request, env) {
   const session = await authorizedSession(request, env);
-  if (!session) return json({ error: "Acceso no autorizado" }, 401, { "set-cookie": sessionCookie("", 0) });
+  if (!session) return json({ error: "Acceso no autorizado" }, 401);
   return json({ user: session.user });
 }
 
 async function logout(request, env) {
   if (!sameOrigin(request)) return json({ error: "Origen no permitido" }, 403);
+  const token = cookies(request)[SESSION_COOKIE];
+  const session = await verifySessionToken(token, env);
   return json(
     { ok: true, logoutUrl: `${portalOrigin(env)}/logout` },
     200,
-    { "set-cookie": sessionCookie("", 0) },
+    { "set-cookie": sessionCookie("", 0, Boolean(session?.embedded)) },
   );
 }
 
@@ -73,7 +86,7 @@ async function portalRequest(env, pathname, payload) {
   });
 }
 
-async function createSessionToken(user, env) {
+async function createSessionToken(user, env, embedded = false) {
   const payload = toBase64Url(new TextEncoder().encode(JSON.stringify({
     user: {
       id: Number(user.id),
@@ -81,6 +94,7 @@ async function createSessionToken(user, env) {
       email: String(user.email || ""),
       role: String(user.role || "user"),
     },
+    embedded,
     exp: Math.floor(Date.now() / 1000) + SESSION_SECONDS,
   })));
   return `${payload}.${await sign(payload, env)}`;
@@ -129,8 +143,9 @@ function cookies(request) {
   return result;
 }
 
-function sessionCookie(value, maxAge) {
-  return `${SESSION_COOKIE}=${encodeURIComponent(value)}; Max-Age=${maxAge}; Path=/; HttpOnly; Secure; SameSite=Lax`;
+function sessionCookie(value, maxAge, embedded = false) {
+  const crossSiteAttributes = embedded ? "; SameSite=None; Partitioned" : "; SameSite=Lax";
+  return `${SESSION_COOKIE}=${encodeURIComponent(value)}; Max-Age=${maxAge}; Path=/; HttpOnly; Secure${crossSiteAttributes}`;
 }
 
 function toBase64Url(value) {
@@ -158,6 +173,10 @@ function portalOrigin(env) {
   return String(env.PORTAL_ORIGIN || DEFAULT_PORTAL_ORIGIN).replace(/\/$/, "");
 }
 
+function embedParentOrigin(env) {
+  return String(env.EMBED_PARENT_ORIGIN || DEFAULT_EMBED_PARENT_ORIGIN).replace(/\/$/, "");
+}
+
 function redirect(location, headers = {}) {
   return new Response(null, { status: 303, headers: { location, "cache-control": "no-store", ...headers } });
 }
@@ -179,6 +198,7 @@ async function assetResponse(request, env) {
   const headers = new Headers(response.headers);
   headers.set("x-content-type-options", "nosniff");
   headers.set("referrer-policy", "same-origin");
-  headers.set("x-frame-options", "SAMEORIGIN");
+  headers.delete("x-frame-options");
+  headers.set("content-security-policy", `frame-ancestors 'self' ${embedParentOrigin(env)}`);
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }

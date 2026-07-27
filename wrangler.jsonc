@@ -11,7 +11,8 @@
     "run_worker_first": true
   },
   "vars": {
-    "PORTAL_ORIGIN": "https://portal.camaraceuta.workers.dev"
+    "PORTAL_ORIGIN": "https://portal.camaraceuta.workers.dev",
+    "EMBED_PARENT_ORIGIN": "https://portal-jornadas.pages.dev"
   },
   "observability": {
     "enabled": true
