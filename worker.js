@@ -3,6 +3,8 @@ const SESSION_COOKIE = "portal_calendario_session";
 const SESSION_SECONDS = 180 * 24 * 60 * 60;
 const DEFAULT_PORTAL_ORIGIN = "https://portal.camaraceuta.workers.dev";
 const DEFAULT_EMBED_PARENT_ORIGIN = "https://portal-jornadas.pages.dev";
+const DEFAULT_SUPABASE_URL = "https://oqeyynrgustgotpcoewh.supabase.co";
+const DEFAULT_EMBED_VIEWER_EMAIL = "[REDACTED]";
 
 export default {
   async fetch(request, env) {
@@ -11,10 +13,11 @@ export default {
       if (url.pathname === "/api/auth/portal" && request.method === "GET") return portalCallback(request, env);
       if (url.pathname === "/api/auth/session" && request.method === "GET") return sessionStatus(request, env);
       if (url.pathname === "/api/auth/logout" && request.method === "POST") return logout(request, env);
+      if (url.pathname === "/api/embed/data" && request.method === "GET") return embeddedData(request, env);
       if (url.pathname.startsWith("/api/")) return json({ error: "Ruta no encontrada" }, 404);
 
       if (request.method === "GET" && acceptsHtml(request)) {
-        if (url.searchParams.get("auth_error") || url.searchParams.get("auth_popup") === "1") return assetResponse(request, env);
+        if (url.searchParams.get("auth_error")) return assetResponse(request, env);
         const session = await authorizedSession(request, env);
         if (!session) {
           const loginUrl = url.searchParams.get("embed") === "1"
@@ -61,6 +64,46 @@ async function logout(request, env) {
     200,
     { "set-cookie": sessionCookie("", 0, Boolean(session?.embedded)) },
   );
+}
+
+async function embeddedData(request, env) {
+  const session = await authorizedSession(request, env);
+  if (!session?.embedded) return json({ error: "Acceso incrustado no autorizado" }, 403);
+
+  const serviceKey = String(env.SUPABASE_SERVICE_ROLE_KEY || "");
+  if (!serviceKey) return json({ error: "La vista de calendario no está configurada" }, 503);
+
+  const [profiles, reservations, departments] = await Promise.all([
+    fetchSupabaseRows(env, serviceKey, "profiles", "select=*&order=nombre.asc&limit=500"),
+    fetchSupabaseRows(env, serviceKey, "reservas", "select=*&order=starts_at.asc&limit=5000"),
+    fetchSupabaseRows(env, serviceKey, "departamentos", "select=*&order=nombre.asc&limit=200"),
+  ]);
+
+  const viewerEmail = String(env.EMBED_VIEWER_EMAIL || DEFAULT_EMBED_VIEWER_EMAIL).trim().toLowerCase();
+  const viewer = profiles.find((profile) => String(profile.email || "").trim().toLowerCase() === viewerEmail);
+  if (!viewer || viewer.activo === false) return json({ error: "El perfil de consulta de Usuario de consulta no está disponible" }, 503);
+
+  return json({
+    viewer: { ...viewer, rol: "consulta" },
+    profiles,
+    reservations,
+    departments,
+  }, 200, { "cache-control": "no-store" });
+}
+
+async function fetchSupabaseRows(env, serviceKey, table, query) {
+  const response = await fetch(`${supabaseOrigin(env)}/rest/v1/${table}?${query}`, {
+    headers: {
+      apikey: serviceKey,
+      accept: "application/json",
+    },
+  });
+  if (!response.ok) {
+    console.error(JSON.stringify({ event: "calendar_embed_data_error", table, status: response.status }));
+    throw new Error(`No se pudo consultar ${table}`);
+  }
+  const result = await response.json();
+  return Array.isArray(result) ? result : [];
 }
 
 async function authorizedSession(request, env) {
@@ -175,6 +218,10 @@ function portalOrigin(env) {
 
 function embedParentOrigin(env) {
   return String(env.EMBED_PARENT_ORIGIN || DEFAULT_EMBED_PARENT_ORIGIN).replace(/\/$/, "");
+}
+
+function supabaseOrigin(env) {
+  return String(env.SUPABASE_URL || DEFAULT_SUPABASE_URL).replace(/\/$/, "");
 }
 
 function redirect(location, headers = {}) {

@@ -1646,6 +1646,7 @@ body.reserva-unassigned-active #r-area{background:#fffbeb;border-color:#fed7aa}
 .access-denied-box{display:none;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:12px;padding:12px;margin-bottom:14px;line-height:1.45}
 .access-denied-box b{display:block;color:#7c2d12;margin-bottom:4px}
 body.sso-mode .password-login-fields{display:none}
+body.embedded-mode .sso-box{display:none}
 
 </style>
 </head>
@@ -1675,8 +1676,8 @@ window.addEventListener('error', function(e){
     <div id="login-error" class="error-box"></div>
     <div id="access-denied" class="access-denied-box"></div>
     <div class="sso-box">
-      <button class="btn btn-microsoft" onclick="doMicrosoftLogin()"><i class="ti ti-brand-windows"></i> Completar acceso Microsoft</button>
-      <div class="login-help">Si estás dentro de Jornadas, Microsoft se abrirá en una ventana segura y el calendario se activará aquí automáticamente.</div>
+      <button class="btn btn-microsoft" onclick="doMicrosoftLogin()"><i class="ti ti-brand-windows"></i> Entrar con Microsoft corporativo</button>
+      <div class="login-help">Acceso completo para coordinadores y administradores autorizados.</div>
     </div>
   </div>
 </div>
@@ -2210,7 +2211,7 @@ window.addEventListener('error', function(e){
 <div class="toast-wrap" id="toast-wrap"></div>
 
 <script>
-const APP_VERSION = "2.9.0-embedded-sso";
+const APP_VERSION = "3.0.0-embedded-readonly";
 const SUPABASE_URL = "https://oqeyynrgustgotpcoewh.supabase.co";
 const SUPABASE_KEY = "sb_publishable_IySdHXVzAN-mVIjksuJsyg_NSnXCQEw";
 
@@ -2222,10 +2223,10 @@ const PORTAL_URL = "https://portal.camaraceuta.workers.dev";
 const PORTAL_LAUNCH_URL = PORTAL_URL + "/api/apps/calendario-eventos/launch";
 const EMBED_LAUNCH_URL = "https://portal-jornadas.pages.dev/api/calendar/launch";
 const EMBEDDED_MODE = window.self !== window.top || new URLSearchParams(window.location.search).get('embed') === '1';
-const EMBED_AUTH_MESSAGE = 'calendar-supabase-session';
 let sb = null;
 let portalUser = null;
 let portalAccessTimer = null;
+let embeddedRefreshTimer = null;
 
 function initSupabaseClient(){
   if(sb) return true;
@@ -2580,11 +2581,8 @@ function toast(msg,type='ok'){const t=document.createElement('div');t.className=
 
 async function boot(){
   clearAuthError();
+  document.body.classList.toggle('embedded-mode',EMBEDDED_MODE);
   const params=new URLSearchParams(window.location.search);
-  if(params.get('auth_popup')==='1' && window.opener){
-    await completeEmbedAuthPopup();
-    return;
-  }
   if(params.get('auth_error')){
     showLogin();
     showPortalAccessDenied();
@@ -2606,6 +2604,17 @@ async function boot(){
     return;
   }
 
+  if(EMBEDDED_MODE){
+    try{
+      await enterEmbeddedReadOnly();
+    }catch(e){
+      console.error(e);
+      showLogin();
+      showAuthError(e.message||'No se pudo cargar la vista de calendario.');
+    }
+    return;
+  }
+
   const {data:{session}} = await sb.auth.getSession();
   if(session?.user){
     try{
@@ -2618,33 +2627,62 @@ async function boot(){
     return;
   }
 
-  if(EMBEDDED_MODE){
-    showLogin();
-    showAuthError('Pulsa “Completar acceso Microsoft”. Se abrirá una ventana segura y volverás automáticamente al calendario.');
-    return;
-  }
-
   await doMicrosoftLogin(true);
 }
 
-async function completeEmbedAuthPopup(){
-  showLogin();
-  showAuthError('Completando el acceso Microsoft…');
-  for(let attempt=0;attempt<40;attempt+=1){
-    const {data:{session}}=await sb.auth.getSession();
-    if(session?.access_token && session?.refresh_token){
-      window.opener.postMessage({
-        type:EMBED_AUTH_MESSAGE,
-        accessToken:session.access_token,
-        refreshToken:session.refresh_token
-      },window.location.origin);
-      showAuthError('Acceso completado. Esta ventana se cerrará automáticamente.');
-      window.setTimeout(()=>window.close(),350);
-      return;
-    }
-    await new Promise(resolve=>window.setTimeout(resolve,250));
+async function loadEmbeddedData(){
+  const response=await fetch('/api/embed/data',{headers:{accept:'application/json'},cache:'no-store'});
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok) throw new Error(result.error||'No se pudo consultar el calendario.');
+
+  profiles=Array.isArray(result.profiles)?result.profiles:[];
+  applyProfileNameFixes();
+  departamentos=Array.isArray(result.departments)?result.departments:[];
+  if(departamentos.length){
+    DEPARTMENTS=[...new Set(departamentos.filter(x=>x.activo!==false).map(x=>x.nombre).filter(Boolean))].sort(compareTextEs);
+    sortDepartmentsLocal();
+    departamentos.forEach(x=>{DEPT_COLORS[x.nombre]=x.color;});
   }
-  showAuthError('Microsoft no devolvió una sesión válida. Cierra esta ventana y vuelve a intentarlo.');
+  reservas=(Array.isArray(result.reservations)?result.reservations:[]).map(hydrateReservaRow);
+  auditLog=[];
+  responsable2ColumnReady=reservas.some(row=>Object.prototype.hasOwnProperty.call(row,'responsable_2_id'));
+  lastReservasFingerprint=reservasFingerprint(reservas);
+  currentUser={...(result.viewer||{}),rol:'consulta'};
+  if(!currentUser.id) throw new Error('El perfil de Usuario de consulta no está disponible para la vista del portal.');
+}
+
+async function enterEmbeddedReadOnly(){
+  await loadEmbeddedData();
+  applyPermissionUI();
+  updateMobileMode();
+  document.getElementById('auth').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+
+  const displayName=currentUser.nombre||'Usuario de consulta';
+  document.getElementById('avatar').textContent=displayName.slice(0,1).toUpperCase();
+  document.getElementById('user-name').innerHTML=`<span class="employee-name">${esc(displayName)}</span><span class="employee-email">${esc(profileDisplayLine(currentUser))}</span>`;
+  const roleEl=document.getElementById('user-role');
+  roleEl.textContent='Solo lectura';
+  roleEl.className='role-chip role-consulta';
+
+  fillSelects();
+  showView('calendar');
+  startEmbeddedRefresh();
+  startPortalAccessChecks();
+}
+
+function startEmbeddedRefresh(){
+  if(embeddedRefreshTimer) clearInterval(embeddedRefreshTimer);
+  embeddedRefreshTimer=setInterval(async()=>{
+    if(document.hidden||!currentUser) return;
+    try{
+      await loadEmbeddedData();
+      fillSelects();
+      renderAll();
+    }catch(e){
+      console.warn('No se pudo actualizar la vista incrustada',e);
+    }
+  },30000);
 }
 
 async function loadPortalSession(){
@@ -2729,44 +2767,18 @@ async function doMicrosoftLogin(auto=false){
     showAuthError('El cliente Supabase no se inicializó. Recarga la página (Ctrl/Cmd + R).');
     return;
   }
-  const redirectTo=EMBEDDED_MODE
-    ? window.location.origin+window.location.pathname+'?auth_popup=1'
-    : ssoRedirectUrl();
-  const {data,error}=await sb.auth.signInWithOAuth({
+  const {error}=await sb.auth.signInWithOAuth({
     provider: MICROSOFT_PROVIDER,
     options:{
       scopes: MICROSOFT_SCOPES,
-      redirectTo,
-      skipBrowserRedirect: EMBEDDED_MODE
+      redirectTo:ssoRedirectUrl()
     }
   });
   if(error){
     console.error(error);
     showAuthError('No se pudo iniciar sesión con Microsoft. Revisa que Azure esté configurado en Supabase Auth y que esta URL esté permitida como Redirect URL.');
-    return;
-  }
-  if(EMBEDDED_MODE){
-    const popup=window.open(data?.url||'', 'calendarMicrosoftAccess', 'popup=yes,width=560,height=720');
-    if(!popup){
-      showAuthError('El navegador ha bloqueado la ventana de acceso. Permite las ventanas emergentes para este sitio y vuelve a pulsar el botón.');
-    }else{
-      showAuthError('Completa el acceso en la ventana de Microsoft. El calendario continuará automáticamente.');
-    }
   }
 }
-
-window.addEventListener('message',async event=>{
-  if(event.origin!==window.location.origin || event.data?.type!==EMBED_AUTH_MESSAGE) return;
-  const accessToken=String(event.data.accessToken||'');
-  const refreshToken=String(event.data.refreshToken||'');
-  if(!accessToken || !refreshToken) return;
-  const {error}=await sb.auth.setSession({access_token:accessToken,refresh_token:refreshToken});
-  if(error){
-    showAuthError('No se pudo activar la sesión del calendario: '+error.message);
-    return;
-  }
-  await boot();
-});
 
 async function ensureProfile(authUser){
   const email=String(authUser.email||authUser.user_metadata?.email||'').trim().toLowerCase();
@@ -3202,6 +3214,10 @@ function startAutoRefresh(){
 }
 
 function stopAutoRefresh(){
+  if(embeddedRefreshTimer){
+    clearInterval(embeddedRefreshTimer);
+    embeddedRefreshTimer=null;
+  }
   if(autoRefreshTimer){
     clearInterval(autoRefreshTimer);
     autoRefreshTimer=null;

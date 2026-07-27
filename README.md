@@ -10,7 +10,7 @@ Agenda corporativa protegida por el inicio de sesión Microsoft y los permisos d
 4. El calendario crea una cookie segura y mantiene Supabase Auth para acceder a sus datos.
 5. Cada minuto se vuelve a comprobar el permiso. Una revocación cierra la aplicación.
 
-Cuando el calendario está incrustado en Portal Jornadas, Jornadas genera un código central de un solo uso para el usuario ya autenticado. El calendario guarda su sesión Worker en una cookie particionada y, si Supabase todavía no tiene sesión en ese contexto, completa Microsoft en una ventana emergente segura en lugar de intentar cargarlo dentro del `iframe`.
+Cuando el calendario está incrustado en Portal Jornadas, Jornadas genera un código central de un solo uso para el usuario ya autenticado. El Worker entrega una vista de solo lectura asociada al perfil de Usuario de consulta y no solicita un segundo acceso Microsoft. La entrada directa al calendario mantiene el acceso completo habitual.
 
 ## Configuración obligatoria
 
@@ -27,9 +27,10 @@ En este proyecto del calendario:
 ```powershell
 npm install
 npx wrangler secret put PORTAL_SSO_SECRET
+npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
 ```
 
-Introduce exactamente el mismo valor en ambos comandos.
+`PORTAL_SSO_SECRET` debe coincidir con `CALENDARIO_SSO_SECRET`. `SUPABASE_SERVICE_ROLE_KEY` debe contener la clave secreta de servidor del proyecto Supabase y nunca debe guardarse en GitHub ni exponerse en el navegador.
 
 ## Validación y despliegue
 
@@ -43,7 +44,7 @@ El Worker configurado en `wrangler.jsonc` se llama `calendario`. Si el proyecto 
 
 ## Supabase
 
-La autorización general procede del portal. Supabase sigue proporcionando la sesión necesaria para consultar y modificar los datos de la agenda. Azure debe continuar habilitado en Supabase y las cuentas autorizadas deben conservar un perfil activo en `public.profiles`.
+La autorización general procede del portal. Supabase sigue proporcionando la sesión necesaria para consultar y modificar los datos de la agenda. Azure debe continuar habilitado en Supabase y las cuentas autorizadas deben conservar un perfil activo en `public.profiles`. La vista incrustada consulta los datos desde el Worker con una clave de servidor y nunca entrega esa clave al navegador.
 
 ### URL de retorno obligatoria
 

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'agenda-camara-2-12-0-embedded-sso';
+const CACHE_NAME = 'agenda-camara-3-0-0-embedded-readonly';
 const ASSETS = [
   './',
   './index.html',
