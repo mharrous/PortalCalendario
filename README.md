@@ -45,6 +45,15 @@ El Worker configurado en `wrangler.jsonc` se llama `calendario`. Si el proyecto 
 
 La autorización general procede del portal. Supabase sigue proporcionando la sesión necesaria para consultar y modificar los datos de la agenda. Azure debe continuar habilitado en Supabase y las cuentas autorizadas deben conservar un perfil activo en `public.profiles`.
 
+### URL de retorno obligatoria
+
+En **Supabase → Authentication → URL Configuration** configura:
+
+- **Site URL**: `https://calendario.camaradeceuta.workers.dev`
+- **Redirect URLs**: añade `https://calendario.camaradeceuta.workers.dev/**`
+
+Si esta URL no está autorizada, Supabase ignora el retorno solicitado por el calendario y envía el acceso Microsoft a la URL local configurada por defecto.
+
 ### Reservas paralelas por departamento
 
 Ejecuta `database_update_parallel_reservations.sql` una vez en el editor SQL de Supabase. La regla permite solapes entre departamentos distintos cuando no comparten coordinador ni ubicación. Se mantienen bloqueados los solapes del mismo departamento, con responsables compartidos, en la misma ubicación o sin departamento asignado.
