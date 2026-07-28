@@ -23,10 +23,11 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* Fallback de carga de Supabase + reporte visible de errores tempranos */
 (function(){
+  var embedded = window.self !== window.top || new URLSearchParams(window.location.search).get('embed') === '1';
+  if(embedded) return;
   function showFatal(msg){
     var box = document.getElementById('login-error');
     if(box){ box.style.display='block'; box.textContent = msg; }
@@ -41,6 +42,13 @@
     s.onerror = function(){ showFatal('No se pudo cargar la librería de Supabase desde ningún CDN.\nRevisa tu conexión o bloqueadores de scripts. El login no funcionará hasta resolverlo.'); };
     document.head.appendChild(s);
   }
+  function loadPrimary(){
+    var s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+    s.defer = true;
+    s.onerror = function(){ loadAlt(function(){}); };
+    document.head.appendChild(s);
+  }
   function check(retries){
     if(window.supabase && window.supabase.createClient) return;
     if(retries<=0){ loadAlt(function(){
@@ -49,6 +57,7 @@
     }); return; }
     setTimeout(function(){ check(retries-1); }, 200);
   }
+  loadPrimary();
   check(10);
 
   // Capturar errores tempranos para que no se queden silenciados
@@ -2211,7 +2220,7 @@ window.addEventListener('error', function(e){
 <div class="toast-wrap" id="toast-wrap"></div>
 
 <script>
-const APP_VERSION = "3.0.0-embedded-readonly";
+const APP_VERSION = "3.0.1-embedded-fastload";
 const SUPABASE_URL = "https://oqeyynrgustgotpcoewh.supabase.co";
 const SUPABASE_KEY = "sb_publishable_IySdHXVzAN-mVIjksuJsyg_NSnXCQEw";
 
@@ -2596,14 +2605,6 @@ async function boot(){
     return;
   }
 
-  try{
-    portalUser=await loadPortalSession();
-  }catch(e){
-    console.warn('No se pudo validar la sesión del portal',e);
-    startPortalLogin();
-    return;
-  }
-
   if(EMBEDDED_MODE){
     try{
       await enterEmbeddedReadOnly();
@@ -2612,6 +2613,14 @@ async function boot(){
       showLogin();
       showAuthError(e.message||'No se pudo cargar la vista de calendario.');
     }
+    return;
+  }
+
+  try{
+    portalUser=await loadPortalSession();
+  }catch(e){
+    console.warn('No se pudo validar la sesión del portal',e);
+    startPortalLogin();
     return;
   }
 
@@ -7858,7 +7867,11 @@ function closeModal(id){
 document.querySelectorAll('.modal-overlay').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')}));
 document.getElementById('r-estado')?.addEventListener('change', updateReservaStateUI);
 initCalendarNavigation();
-waitForSupabaseAndBoot();
+if(EMBEDDED_MODE){
+  boot().catch(e=>showAuthError(e.message||e));
+}else{
+  waitForSupabaseAndBoot();
+}
 </script>
 
 <div id="pwa-install" role="dialog" aria-label="Instalar aplicación">
