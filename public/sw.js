@@ -1,4 +1,4 @@
-const CACHE_NAME = 'agenda-camara-3-0-0-embedded-readonly';
+const CACHE_NAME = 'agenda-camara-3-0-4-calendar-grid-desktop';
 const ASSETS = [
   './',
   './index.html',

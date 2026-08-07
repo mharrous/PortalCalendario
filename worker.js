@@ -241,11 +241,17 @@ function json(value, status = 200, headers = {}) {
 }
 
 async function assetResponse(request, env) {
+  const url = new URL(request.url);
   const response = await env.ASSETS.fetch(request);
   const headers = new Headers(response.headers);
   headers.set("x-content-type-options", "nosniff");
   headers.set("referrer-policy", "same-origin");
   headers.delete("x-frame-options");
   headers.set("content-security-policy", `frame-ancestors 'self' ${embedParentOrigin(env)}`);
+  if (acceptsHtml(request) || url.pathname === "/" || url.pathname.endsWith(".html") || url.pathname.endsWith("/sw.js")) {
+    headers.set("cache-control", "no-store, no-cache, must-revalidate");
+    headers.set("pragma", "no-cache");
+    headers.set("expires", "0");
+  }
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }

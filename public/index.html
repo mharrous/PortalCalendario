@@ -1464,7 +1464,20 @@ body.reserva-unassigned-active #r-area{background:#fffbeb;border-color:#fed7aa}
 
 
 /* Calendario mensual premium: tarjetas limpias, solo días del mes */
-.compact-month .weekdays{display:none!important}
+.compact-month .weekdays{
+  display:grid!important;
+  grid-template-columns:repeat(7,minmax(0,1fr))!important;
+  gap:13px!important;
+  padding:0 2px 8px!important;
+}
+.compact-month .weekdays div{
+  min-width:0!important;
+  padding:0 4px!important;
+  border:0!important;
+  text-align:left!important;
+  font-size:10px!important;
+  letter-spacing:.06em!important;
+}
 .compact-month{
   border:none!important;
   background:transparent!important;
@@ -1473,12 +1486,13 @@ body.reserva-unassigned-active #r-area{background:#fffbeb;border-color:#fed7aa}
 }
 .compact-month .grid{
   display:grid!important;
-  grid-template-columns:repeat(auto-fill,minmax(190px,1fr))!important;
+  grid-template-columns:repeat(7,minmax(0,1fr))!important;
   gap:13px!important;
   padding:2px!important;
   align-items:stretch!important;
 }
 .compact-month .grid > .day.month-card{
+  min-width:0!important;
   min-height:122px!important;
   border:1px solid #dbe6f3!important;
   border-radius:18px!important;
@@ -1488,6 +1502,13 @@ body.reserva-unassigned-active #r-area{background:#fffbeb;border-color:#fed7aa}
   overflow:hidden!important;
   position:relative!important;
   transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease,background .16s ease!important;
+}
+.compact-month .grid > .day.month-card-placeholder{
+  visibility:hidden!important;
+  min-height:122px!important;
+  border:1px solid transparent!important;
+  box-shadow:none!important;
+  pointer-events:none!important;
 }
 .compact-month .grid > .day.month-card::before{
   content:'';
@@ -1529,7 +1550,7 @@ body.reserva-unassigned-active #r-area{background:#fffbeb;border-color:#fed7aa}
   gap:5px!important;
 }
 .compact-month .grid > .day.month-card .weekday-mini{
-  display:inline-flex!important;
+  display:none!important;
   align-items:center!important;
   justify-content:center!important;
   font-size:11px!important;
@@ -1631,17 +1652,31 @@ body.reserva-unassigned-active #r-area{background:#fffbeb;border-color:#fed7aa}
   border-color:#7d0b1d!important;
   box-shadow:0 12px 24px rgba(125,11,29,.22)!important;
 }
-@media(max-width:1100px){.compact-month .grid{grid-template-columns:repeat(auto-fill,minmax(165px,1fr))!important}}
-@media(max-width:820px){
-  .compact-month .grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:9px!important}
-  .compact-month .grid > .day.month-card{min-height:112px!important;padding:10px!important;border-radius:16px!important}
-  .compact-month .grid > .day.month-card .num{gap:7px!important;margin-bottom:8px!important}
-  .compact-month .grid > .day.month-card .weekday-mini{font-size:10px!important}
-  .compact-month .grid > .day.month-card .today-chip{padding:4px 8px!important;font-size:9px!important}
-  .compact-month .grid > .day.month-card .num b{font-size:16px!important;min-width:30px!important;height:30px!important;border-radius:11px!important}
+body.embedded-mode .compact-month .grid{
+  grid-template-columns:repeat(7,minmax(0,1fr))!important;
+  width:100%!important;
+}
+body.embedded-mode .compact-month .grid > .day.month-card{
+  min-width:0!important;
+}
+@media(max-width:1100px){
+  .compact-month .weekdays,.compact-month .grid{gap:9px!important}
+  .compact-month .grid > .day.month-card{min-height:108px!important;padding:9px!important;border-radius:15px!important}
+  .compact-month .grid > .day.month-card-placeholder{min-height:108px!important}
   .compact-month .grid > .day.month-card .event{font-size:10px!important;padding:5px 6px!important}
 }
-@media(max-width:420px){.compact-month .grid{grid-template-columns:1fr!important}}
+@media(max-width:820px){
+  .compact-month .weekdays,.compact-month .grid{grid-template-columns:repeat(7,minmax(0,1fr))!important;gap:4px!important}
+  .compact-month .weekdays{padding-bottom:5px!important}
+  .compact-month .weekdays div{text-align:center!important;font-size:8px!important;padding:0!important}
+  .compact-month .grid > .day.month-card{min-height:68px!important;padding:4px!important;border-radius:11px!important}
+  .compact-month .grid > .day.month-card-placeholder{min-height:68px!important;padding:4px!important}
+  .compact-month .grid > .day.month-card .num{gap:4px!important;margin-bottom:4px!important}
+  .compact-month .grid > .day.month-card .today-chip{padding:4px 8px!important;font-size:9px!important}
+  .compact-month .grid > .day.month-card .num b{font-size:13px!important;min-width:24px!important;height:24px!important;padding:0 5px!important;border-radius:8px!important}
+  .compact-month .grid > .day.month-card .event{display:none!important}
+  .compact-month .grid > .day.month-card .mobile-day-count{right:5px!important;bottom:5px!important}
+}
 
 
 
@@ -1657,6 +1692,52 @@ body.reserva-unassigned-active #r-area{background:#fffbeb;border-color:#fed7aa}
 body.sso-mode .password-login-fields{display:none}
 body.embedded-mode .sso-box{display:none}
 
+/* Corrección definitiva escritorio: calendario mensual lunes-domingo */
+#month-calendar.compact-month .weekdays{
+  display:grid!important;
+  grid-template-columns:repeat(7,minmax(0,1fr))!important;
+  gap:13px!important;
+  padding:0 2px 8px!important;
+}
+#month-calendar.compact-month .weekdays div{
+  display:block!important;
+  text-align:left!important;
+  padding:0 4px!important;
+  background:transparent!important;
+  border:0!important;
+  color:#64748b!important;
+  font-size:10px!important;
+  font-weight:950!important;
+  letter-spacing:.06em!important;
+}
+#month-calendar.compact-month #cal-grid{
+  display:grid!important;
+  grid-template-columns:repeat(7,minmax(0,1fr))!important;
+  grid-auto-flow:row!important;
+  gap:13px!important;
+  align-items:stretch!important;
+}
+#month-calendar.compact-month #cal-grid > .month-card{min-width:0!important}
+#month-calendar.compact-month #cal-grid > .month-card-placeholder{
+  display:block!important;
+  visibility:hidden!important;
+  min-height:122px!important;
+  border:1px solid transparent!important;
+  box-shadow:none!important;
+  pointer-events:none!important;
+}
+#month-calendar.compact-month #cal-grid .weekday-mini{display:none!important}
+@media(max-width:1100px){
+  #month-calendar.compact-month .weekdays,
+  #month-calendar.compact-month #cal-grid{gap:9px!important}
+  #month-calendar.compact-month #cal-grid > .month-card-placeholder{min-height:108px!important}
+}
+@media(max-width:820px){
+  #month-calendar.compact-month .weekdays,
+  #month-calendar.compact-month #cal-grid{gap:4px!important}
+  #month-calendar.compact-month .weekdays div{text-align:center!important;font-size:8px!important}
+  #month-calendar.compact-month #cal-grid > .month-card-placeholder{min-height:68px!important}
+}
 </style>
 </head>
 <body>
@@ -2220,7 +2301,7 @@ window.addEventListener('error', function(e){
 <div class="toast-wrap" id="toast-wrap"></div>
 
 <script>
-const APP_VERSION = "3.0.1-embedded-fastload";
+const APP_VERSION = "3.0.4-calendar-grid-desktop";
 const SUPABASE_URL = "https://oqeyynrgustgotpcoewh.supabase.co";
 const SUPABASE_KEY = "sb_publishable_IySdHXVzAN-mVIjksuJsyg_NSnXCQEw";
 
@@ -3656,15 +3737,17 @@ function renderCalendar(){
   const year=calDate.getFullYear();
   const month=calDate.getMonth();
   document.getElementById('cal-title').textContent=MESES[month]+' '+year;
-  const lastDay=new Date(year,month+1,0).getDate();
-  const days=Array.from({length:lastDay},(_,i)=>new Date(year,month,i+1));
+  const cells=calendarCellsForMonth(year,month);
   const today=fmtDate(new Date());
   const grid=document.getElementById('cal-grid');
-  grid.innerHTML=days.map(d=>{
+  grid.innerHTML=cells.map(cell=>{
+    if(cell.other) return '<div class="day month-card month-card-placeholder" aria-hidden="true"></div>';
+    const d=cell.d;
     const ds=fmtDate(d);
     const weekday=d.toLocaleDateString('es-ES',{weekday:'short'}).replace('.','');
     const evs=rs.filter(r=>eventOccursOnDate(r,ds)).sort((a,b)=>eventSortValueForDate(a,ds).localeCompare(eventSortValueForDate(b,ds)));
-    return `<div class="day month-card ${ds===today?'today':''} ${evs.length?'has-events':''}" ${canManageAgenda()?`onclick="openReservaModal(null,'${ds}')" title="Crear reserva el ${ds}"`:'title="Consulta de calendario"'}>
+    const firstDayPlacement=d.getDate()===1?`style="grid-column-start:${mondayOffset(d)+1}"`:'';
+    return `<div class="day month-card ${ds===today?'today':''} ${evs.length?'has-events':''}" ${firstDayPlacement} ${canManageAgenda()?`onclick="openReservaModal(null,'${ds}')" title="Crear reserva el ${ds}"`:'title="Consulta de calendario"'}>
       <div class="num"><div class="num-left"><span class="weekday-mini">${esc(weekday)}</span>${ds===today?'<span class="today-chip">Hoy</span>':''}</div><b>${d.getDate()}</b></div>
       ${evs.length?`<div class="mobile-day-count">${evs.length}</div>`:''}
       ${evs.slice(0,4).map(r=>`<div class="event ${cardStateClass(r.estado)}" style="background:${eventColor(r)}" onclick="event.stopPropagation();openDetalle('${r.id}')" title="${esc(r.titulo)}"><span class="ev-time">${esc(eventTimeLabel(r,ds))}</span> <span class="ev-title">${esc(r.titulo)}</span></div>`).join('')}
