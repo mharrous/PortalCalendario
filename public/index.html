@@ -2218,7 +2218,7 @@ window.addEventListener('error', function(e){
         </div>
         <div class="form-group">
           <label>Contraseña temporal *</label>
-          <input id="cu-pass" type="password" value="[REDACTED]">
+          <input id="cu-pass" type="password" autocomplete="new-password" minlength="12" placeholder="Mínimo 12 caracteres">
         </div>
         <div class="form-group">
           <label>Rol *</label>
@@ -2258,7 +2258,7 @@ window.addEventListener('error', function(e){
       <div class="row">
         <div class="form-group">
           <label>Nombre visible *</label>
-          <input id="u-nombre" placeholder="Ej: Usuario">
+          <input id="u-nombre" placeholder="Ej: Nombre Apellidos">
         </div>
         <div class="form-group">
           <label>Email</label>
@@ -2352,36 +2352,13 @@ let DEPT_COLORS={
   'Proyectos':'#E11D48',
   'Secretaría General':'#7D0B1D'
 };
-const PROFILE_PRESETS={
-  '[REDACTED]':{nombre:'Usuario',rol:'admin',departamento:'Innovación',cargo:'Departamento de Innovación'},
-  '[REDACTED]':{nombre:'Usuario',rol:'coordinador',departamento:'Innovación',cargo:'Departamento de Innovación'},
-  '[REDACTED]':{nombre:'Usuario',rol:'admin',departamento:'Secretaría General',cargo:'Secretario General'}
-};
-
 const ES_COLLATOR = new Intl.Collator('es', {sensitivity:'base', numeric:true});
-const KNOWN_NAME_FIXES={
-  'ainara':'Usuario',
-  'ainara olmedo':'Usuario',
-  'ainara olmedo rodriguez':'Usuario',
-  'alberto illescas':'Usuario',
-  'alberto illescas pastor':'Usuario',
-  'joaquin mollinedo':'Usuario',
-  'joaquin mollinedo gomez zorrilla':'Usuario'
-};
-const KNOWN_EMAIL_NAME_FIXES={
-  '[REDACTED]':'Usuario',
-  '[REDACTED]':'Usuario'
-};
 function normalizeTextKey(value){
   return String(value||'').normalize('NFD').replace(/[̀-ͯ]/g,'').trim().toLowerCase().replace(/\s+/g,' ');
 }
 function fixedProfileName(profile){
   if(!profile) return '';
-  const email=String(profile.email||'').trim().toLowerCase();
-  const byEmail=KNOWN_EMAIL_NAME_FIXES[email];
-  if(byEmail) return byEmail;
-  const byName=KNOWN_NAME_FIXES[normalizeTextKey(profile.nombre)];
-  return byName || profile.nombre || profile.email || '';
+  return profile.nombre || profile.email || '';
 }
 function applyProfileNameFixes(){
   profiles = profiles.map(p=>{
@@ -2738,7 +2715,7 @@ async function loadEmbeddedData(){
   responsable2ColumnReady=reservas.some(row=>Object.prototype.hasOwnProperty.call(row,'responsable_2_id'));
   lastReservasFingerprint=reservasFingerprint(reservas);
   currentUser={...(result.viewer||{}),rol:'consulta'};
-  if(!currentUser.id) throw new Error('El perfil de Usuario de consulta no está disponible para la vista del portal.');
+  if(!currentUser.id) throw new Error('El perfil de consulta no está disponible para la vista del portal.');
 }
 
 async function enterEmbeddedReadOnly(){
@@ -4438,7 +4415,7 @@ function openCreateUserModal(){
   if(!isAdmin()) return;
   document.getElementById('create-user-error').style.display='none';
   ['cu-nombre','cu-email','cu-cargo'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('cu-pass').value='[REDACTED]';
+  document.getElementById('cu-pass').value='';
   document.getElementById('cu-rol').value='coordinador';
   document.getElementById('cu-departamento').innerHTML='<option value="">Sin departamento</option>'+DEPARTMENTS.map(d=>`<option value="${d}">${d}</option>`).join('');
   openModal('modal-crear-usuario');

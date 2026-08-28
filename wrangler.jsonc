@@ -13,8 +13,7 @@
   "vars": {
     "PORTAL_ORIGIN": "https://portal.camaraceuta.workers.dev",
     "EMBED_PARENT_ORIGIN": "https://portal-jornadas.pages.dev",
-    "SUPABASE_URL": "https://oqeyynrgustgotpcoewh.supabase.co",
-    "EMBED_VIEWER_EMAIL": "[REDACTED]"
+    "SUPABASE_URL": "https://oqeyynrgustgotpcoewh.supabase.co"
   },
   "observability": {
     "enabled": true

@@ -4,7 +4,6 @@ const SESSION_SECONDS = 180 * 24 * 60 * 60;
 const DEFAULT_PORTAL_ORIGIN = "https://portal.camaraceuta.workers.dev";
 const DEFAULT_EMBED_PARENT_ORIGIN = "https://portal-jornadas.pages.dev";
 const DEFAULT_SUPABASE_URL = "https://oqeyynrgustgotpcoewh.supabase.co";
-const DEFAULT_EMBED_VIEWER_EMAIL = "[REDACTED]";
 
 export default {
   async fetch(request, env) {
@@ -79,9 +78,10 @@ async function embeddedData(request, env) {
     fetchSupabaseRows(env, serviceKey, "departamentos", "select=*&order=nombre.asc&limit=200"),
   ]);
 
-  const viewerEmail = String(env.EMBED_VIEWER_EMAIL || DEFAULT_EMBED_VIEWER_EMAIL).trim().toLowerCase();
+  const viewerEmail = String(env.EMBED_VIEWER_EMAIL_SECRET || "").trim().toLowerCase();
+  if (!viewerEmail) return json({ error: "El perfil de consulta no está configurado" }, 503);
   const viewer = profiles.find((profile) => String(profile.email || "").trim().toLowerCase() === viewerEmail);
-  if (!viewer || viewer.activo === false) return json({ error: "El perfil de consulta de Usuario de consulta no está disponible" }, 503);
+  if (!viewer || viewer.activo === false) return json({ error: "El perfil de consulta no está disponible" }, 503);
 
   return json({
     viewer: { ...viewer, rol: "consulta" },

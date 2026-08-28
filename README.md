@@ -10,7 +10,7 @@ Agenda corporativa protegida por el inicio de sesión Microsoft y los permisos d
 4. El calendario crea una cookie segura y mantiene Supabase Auth para acceder a sus datos.
 5. Cada minuto se vuelve a comprobar el permiso. Una revocación cierra la aplicación.
 
-Cuando el calendario está incrustado en Portal Jornadas, Jornadas genera un código central de un solo uso para el usuario ya autenticado. El Worker entrega una vista de solo lectura asociada al perfil de Usuario de consulta y no solicita un segundo acceso Microsoft. La entrada directa al calendario mantiene el acceso completo habitual.
+Cuando el calendario está incrustado en Portal Jornadas, Jornadas genera un código central de un solo uso para el usuario ya autenticado. El Worker entrega una vista de solo lectura asociada al perfil configurado de forma segura y no solicita un segundo acceso Microsoft. La entrada directa al calendario mantiene el acceso completo habitual.
 
 ## Configuración obligatoria
 
@@ -28,9 +28,10 @@ En este proyecto del calendario:
 npm install
 npx wrangler secret put PORTAL_SSO_SECRET
 npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+npx wrangler secret put EMBED_VIEWER_EMAIL_SECRET
 ```
 
-`PORTAL_SSO_SECRET` debe coincidir con `CALENDARIO_SSO_SECRET`. `SUPABASE_SERVICE_ROLE_KEY` debe contener la clave secreta de servidor del proyecto Supabase y nunca debe guardarse en GitHub ni exponerse en el navegador.
+`PORTAL_SSO_SECRET` debe coincidir con `CALENDARIO_SSO_SECRET`. `SUPABASE_SERVICE_ROLE_KEY` debe contener la clave secreta de servidor del proyecto Supabase. `EMBED_VIEWER_EMAIL_SECRET` identifica el perfil interno usado para la vista incrustada. Ninguno de estos valores debe guardarse en GitHub ni exponerse en el navegador.
 
 ## Validación y despliegue
 
