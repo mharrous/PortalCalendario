@@ -31,7 +31,7 @@ npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
 npx wrangler secret put EMBED_VIEWER_EMAIL_SECRET
 ```
 
-`PORTAL_SSO_SECRET` debe coincidir con `CALENDARIO_SSO_SECRET`. `SUPABASE_SERVICE_ROLE_KEY` debe contener la clave secreta de servidor del proyecto Supabase. `EMBED_VIEWER_EMAIL_SECRET` identifica el perfil interno usado para la vista incrustada. Ninguno de estos valores debe guardarse en GitHub ni exponerse en el navegador.
+`PORTAL_SSO_SECRET` debe coincidir con `CALENDARIO_SSO_SECRET`. `SUPABASE_SERVICE_ROLE_KEY` debe contener la clave secreta de servidor del proyecto Supabase. `EMBED_VIEWER_EMAIL_SECRET` es opcional: identifica el perfil interno mostrado en la vista incrustada; si no está definido, el Worker utiliza un perfil técnico de solo lectura. Ninguno de estos valores debe guardarse en GitHub ni exponerse en el navegador.
 
 ## Validación y despliegue
 

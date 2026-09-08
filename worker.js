@@ -79,9 +79,8 @@ async function embeddedData(request, env) {
   ]);
 
   const viewerEmail = String(env.EMBED_VIEWER_EMAIL_SECRET || "").trim().toLowerCase();
-  if (!viewerEmail) return json({ error: "El perfil de consulta no está configurado" }, 503);
-  const viewer = profiles.find((profile) => String(profile.email || "").trim().toLowerCase() === viewerEmail);
-  if (!viewer || viewer.activo === false) return json({ error: "El perfil de consulta no está disponible" }, 503);
+  const viewer = resolveEmbeddedViewer(profiles, viewerEmail);
+  if (!viewer) return json({ error: "El perfil de consulta no está disponible" }, 503);
 
   return json({
     viewer: { ...viewer, rol: "consulta" },
@@ -89,6 +88,24 @@ async function embeddedData(request, env) {
     reservations,
     departments,
   }, 200, { "cache-control": "no-store" });
+}
+
+export function resolveEmbeddedViewer(profiles, viewerEmail) {
+  if (!viewerEmail) {
+    return {
+      id: "embedded-readonly",
+      nombre: "Consulta Jornadas",
+      email: "",
+      departamento: "",
+      activo: true,
+      rol: "consulta",
+    };
+  }
+
+  const viewer = profiles.find(
+    (profile) => String(profile.email || "").trim().toLowerCase() === viewerEmail,
+  );
+  return viewer?.activo === false ? null : viewer || null;
 }
 
 async function fetchSupabaseRows(env, serviceKey, table, query) {
